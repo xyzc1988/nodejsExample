@@ -34,18 +34,54 @@ function main(argv) {
   http.createServer(function (request,response) {
     console.log("connect coming...");
     var urlInfo = parseURL(root,request.url);
-    combineFiles(urlInfo.pathnames,function(err,data){
-      if (err) {
+
+    validateFile(urlInfo.pathnames,function(err,pathnames){
+      if(err){
         response.writeHead(404);
         response.end(err.message);
-      }else {
+      }else{
         response.writeHead(200,{
           'Content-Type' : urlInfo.mime
-        })
-        response.end(data);
+        });
+
+        outputFiles(pathnames,response);
       }
-    });
+    })
+
   }).listen(port);
+}
+
+function outputFiles(pathnames,writer) {
+  (function next(i,len) {
+    if(i < len){
+      var render = fs.createReadStream(pathnames[i]);
+
+      render.pipe(writer,{end:false});
+      render.on('end',function(){
+        next(i + 1,len);
+      });
+    }else{
+     writer.end();
+    }
+  })(0,pathnames.length);
+}
+
+function validateFile(pathnames,callback) {
+  (function next(i,len) {
+    if(i < len){
+      fs.stat(pathnames[i],function (err,state) {
+        if(err){
+          callback(err);
+        }else if(!state.isFile()){
+          callback(new Error("target is not a file!!"));
+        }else{
+          next(i + 1,len);
+        }
+      });
+    }else{
+      callback(null,pathnames);
+    }
+  })(0,pathnames.length);
 }
 
 function parseURL(root,url){
